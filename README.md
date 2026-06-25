@@ -19,7 +19,7 @@ and mental health benefits. While their unequal distribution is globally documen
 relies on static accessibility metrics within single metropolitan areas. This overlooks the dynamic social usage of these 
 spaces across varying climates. To address this gap, we integrated Landsat 8 remote sensing, census data, and massive 
 mobile phone records (XDR) to analyze green space segregation across six Chilean conurbations. These cities span a 
-latitudinal gradient from Antofagasta (23$^{\circ}$S) to Puerto Montt (41$^{\circ}$S). We quantified vegetation vigor 
+latitudinal gradient from Antofagasta (23°S) to Puerto Montt (41°S). We quantified vegetation vigor 
 using the Normalized Difference Vegetation Index (NDVI) and characterized neighborhood socioeconomic status (SES) using 
 a multidimensional index. We also calculated social entropy from mobile records to dynamically measure daily social 
 mixing within parks. Our results reveal a persistent ``green divide'' regardless of local climate. Parks in lower-SES 
@@ -56,29 +56,16 @@ The pipeline reconstructs the methodology used in the manuscript, including:
   - `worldclim/`: Climatic variables (temperature and precipitation).
   - `Table_parks.csv`: Official analytical park table.
   - `Table_entropy.csv`: Official analytical entropy table.
-  - `UGS_cartography.gpkg`: Official supplementary cartography.
+  - `UGS_cartography.gpkg`: Official supplementary cartographic package containing the `parks`, `ismt`, and `voronoi` layers used for spatial documentation and reproducibility.
 
-- `outputs/`: Generated figures and tables (ignored by Git).
+## Sources
 
----
-
-## How to use
-
-1. Clone this repository.
-2. Open `UGS_pipeline.qmd` in RStudio.
-3. Install the required R packages if necessary.
-4. Render the Quarto document to reproduce the analyses.
-
----
-
-## Data Sources
-
-- National Institute of Statistics (INE), Chile.
-- Observatorio de Ciudades UC (ISMT 2022).
-- Google Earth Engine (Landsat 8 imagery).
-- WorldClim Version 2.
-- 2017 Chilean Population and Housing Census.
-- Mobile phone mobility records (XDR, MOVISTAR).
+- Urban green space database – Public park and urban green space cartography used as the base layer for the study: https://storymaps.arcgis.com/stories/391dac6ee0c3438fbf186aed3ea1cff1
+- Territorial Socio-Material Index (ISMT 2022) – Observatorio de Ciudades UC: https://ideocuc-ocuc.hub.arcgis.com/maps/c83a1ea2c31b4850b65a481b21e4919f/about
+- 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
+- Landsat 8 satellite imagery – Google Earth Engine Data Catalog: https://earthengine.google.com/
+- WorldClim Version 2 – Global climate data: https://www.worldclim.org/
+- Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in the repository under data/.
 
 ---
 
@@ -182,56 +169,6 @@ Most datasets used in this repository are publicly available.
 | Census-derived population table | Yes |
 
 The excluded datasets cannot be redistributed because they are either distributed by third parties or subject to data-sharing agreements.
-
----
-
-# Data sources
-
-- Instituto Nacional de Estadísticas (INE)
-- Observatorio de Ciudades UC (ISMT)
-- Google Earth Engine (Landsat 8)
-- WorldClim v2
-- MOVISTAR XDR mobile phone records
-
----
-
-# Software
-
-The analysis was developed in:
-
-- R
-- Quarto
-
-Main packages include:
-
-- sf
-- terra
-- tidyverse
-- ggplot2
-- ggsankey
-- dendextend
-- emmeans
-- patchwork
-
----
-
-# Reproducibility
-
-Clone the repository
-
-```bash
-git clone ...
-```
-
-Open
-
-```
-analysis.qmd
-```
-
-and render the document.
-
-All relative paths are managed using the `here` package.
 
 ---
 
