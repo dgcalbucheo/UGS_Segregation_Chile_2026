@@ -5,6 +5,7 @@ outputs/
 
 # Mobility data (license restricted)
 data/voronoi_chile/
+data/voronoi_chile.zip
 
 # Public datasets not versioned
 data/CALIDAD_pzpq_2019/
