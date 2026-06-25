@@ -37,7 +37,8 @@ This repository contains the complete analytical workflow used to characterize s
 The pipeline reconstructs the methodology used in the manuscript, including:
 
 - preparation of spatial datasets;
-- reconstruction of NDVI and ISMT metrics;
+- reconstruction and validation of NDVI metrics;
+- reconstruction and validation of ISMT metrics;
 - reconstruction of entropy-based segregation analyses;
 - statistical analyses (ANOVA and Tukey);
 - generation of the main figures;
@@ -58,7 +59,8 @@ The pipeline reconstructs the methodology used in the manuscript, including:
   - `Table_entropy.csv`: Official analytical entropy table.
   - `UGS_cartography.gpkg`: Official supplementary cartographic package containing the park, ISMT, and Voronoi layers used throughout the manuscript.
   - `mobility_supplementary.zip`: Supplementary hourly park social entropy datasets derived from anonymized mobile phone records.
-  - `voronoi_chile.zip`: Voronoi polygons derived from mobile phone antenna locations and linked to ISMT values.
+  
+- `Appendix.pdf`: Supplementary appendix corresponding to the manuscript.
 
 ## Data and Sources
 
@@ -67,14 +69,12 @@ The pipeline reconstructs the methodology used in the manuscript, including:
 - 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
 - Landsat 8 satellite imagery – Google Earth Engine Data Catalog: [https://earthengine.google.com/](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2?hl=es-419)
 - WorldClim Version 2 – Global climate data: https://www.worldclim.org/
-- Derived mobility and spatial datasets – Hourly park social entropy ([`mobility_supplementary.zip`](data/mobility_supplementary.zip)) and Voronoi polygons ([`voronoi_chile.zip`](data/voronoi_chile.zip)) derived from anonymized mobile phone records (XDR, MOVISTAR).
+- Derived mobility and spatial datasets – Hourly park social entropy and the associated Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in [`mobility_supplementary.zip`](data/mobility_supplementary.zip).
 ---
 
 ## Supporting Information
 
-The repository reproduces the complete analytical workflow described in the manuscript, 
-including the supplementary analyses (ANOVA, Tukey tests, dendrograms) and the generation of 
-the supplementary spatial layers accompanying the publication.
+including the supplementary analyses (ANOVA, Tukey tests, dendrograms) and the supplementary cartographic material accompanying the publication.
 
 ---
 
@@ -142,8 +142,7 @@ Includes the supplementary statistical analyses:
 
 ### 6. Supplementary material
 
-Exports the supplementary spatial products accompanying the manuscript, including:
-
+Includes the official supplementary material accompanying the manuscript, including:
 - GeoPackage containing:
     - parks
     - ISMT
@@ -155,20 +154,21 @@ Exports the supplementary spatial products accompanying the manuscript, includin
 
 # Data availability
 
-Most datasets used in this repository are publicly available.
+Most datasets required to reproduce the analyses are included in this repository or are publicly available from their original sources.
 
-| Dataset | Included |
-|----------|-----------|
-| Parks (INE) | No |
-| ISMT | No |
-| NDVI rasters | Yes |
-| WorldClim | No |
-| Mobile phone XDR | No |
-| Voronoi | No |
-| Census-derived population table | Yes |
+| Dataset                         | Included |
+| ------------------------------- | -------- |
+| Original public park database   | No       |
+| ISMT 2022                       | Yes      |
+| NDVI rasters                    | Yes      |
+| WorldClim                       | Yes      |
+| Original mobile phone XDR       | No       |
+| Derived hourly entropy          | Yes      |
+| Supplementary cartography       | Yes      |
+| Census-derived population table | Yes      |
 
-The excluded datasets cannot be redistributed because they are either distributed by third parties or subject to data-sharing agreements.
 
+Original mobile phone XDR records and the original public park database are not redistributed because they are subject to third-party licensing and data-sharing agreements. This repository instead provides the processed datasets required to reproduce the analyses presented in the manuscript.
 ---
 
 # Citation
