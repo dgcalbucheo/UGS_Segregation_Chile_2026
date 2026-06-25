@@ -80,75 +80,19 @@ including the supplementary analyses (ANOVA, Tukey tests, dendrograms) and the s
 
 ## Workflow
 
-The analysis is organized into six sections.
+The analytical workflow is organized into six sections:
 
-### 1. Data loading
+1. **Data loading** – Imports all spatial, environmental, mobility, and analytical datasets.
 
-Loads:
+2. **Data preparation** – Reconstructs and validates park attributes, ISMT, NDVI, entropy, and analytical classifications.
 
-- official park inventory
-- ISMT census data
-- NDVI rasters
-- WorldClim layers
-- mobile phone mobility data
-- official analytical tables
+3. **Results** – Reproduces all statistical analyses and figures presented in the manuscript.
 
----
+4. **Table 1** – Reconstructs the study-area summary table from the original datasets.
 
-### 2. Data preparation
+5. **Appendix** – Generates the supplementary statistical analyses (ANOVA, Tukey tests, and dendrograms).
 
-Includes reconstruction of:
-
-- park attributes
-- ISMT
-- NDVI
-- entropy
-- analytical categories
-
-Each reconstruction is validated against the original analytical tables used in the manuscript.
-
----
-
-### 3. Results
-
-Reproduces the analyses presented in the manuscript:
-
-- NDVI distributions
-- latitudinal gradient
-- NDVI × ISMT
-- Sankey diagrams
-- entropy timelines
-- hierarchical clustering
-
----
-
-### 4. Table 1
-
-Reconstructs the complete study-area summary table from the original datasets.
-
-Unlike the original script, park descriptors are computed using unique park IDs rather than individual polygons, ensuring consistency with the unit of analysis adopted throughout the study.
-
----
-
-### 5. Appendix
-
-Includes the supplementary statistical analyses:
-
-- ANOVA tables
-- Tukey post-hoc tests
-- dendrogram example
-
----
-
-### 6. Supplementary material
-
-Includes the official supplementary material accompanying the manuscript, including:
-- GeoPackage containing:
-    - parks
-    - ISMT
-    - Voronoi
-- NDVI rasters
-- supplementary README
+6. **Supplementary material** – Includes the official cartographic products and supplementary datasets accompanying the manuscript.
 
 ---
 
@@ -169,6 +113,7 @@ Most datasets required to reproduce the analyses are included in this repository
 
 
 Original mobile phone XDR records and the original public park database are not redistributed because they are subject to third-party licensing and data-sharing agreements. This repository instead provides the processed datasets required to reproduce the analyses presented in the manuscript.
+
 ---
 
 # Citation
