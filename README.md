@@ -60,14 +60,14 @@ The pipeline reconstructs the methodology used in the manuscript, including:
   - `mobility_supplementary.zip`: Supplementary hourly park social entropy datasets derived from anonymized mobile phone records.
   - `voronoi_chile.zip`: Voronoi polygons derived from mobile phone antenna locations and linked to ISMT values.
 
-## Sources
+## Data and Sources
 
 - Urban green space database – Public park and urban green space cartography used as the base layer for the study: https://storymaps.arcgis.com/stories/391dac6ee0c3438fbf186aed3ea1cff1
 - Territorial Socio-Material Index (ISMT 2022) – Observatorio de Ciudades UC: https://ideocuc-ocuc.hub.arcgis.com/maps/c83a1ea2c31b4850b65a481b21e4919f/about
 - 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
-- Landsat 8 satellite imagery – Google Earth Engine Data Catalog: https://earthengine.google.com/
+- Landsat 8 satellite imagery – Google Earth Engine Data Catalog: [https://earthengine.google.com/](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2?hl=es-419)
 - WorldClim Version 2 – Global climate data: https://www.worldclim.org/
-- Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in this repository under `data/`.
+- Derived mobility and spatial datasets – Hourly park social entropy ([`mobility_supplementary.zip`](data/mobility_supplementary.zip)) and Voronoi polygons ([`voronoi_chile.zip`](data/voronoi_chile.zip)) derived from anonymized mobile phone records (XDR, MOVISTAR).
 ---
 
 ## Supporting Information
