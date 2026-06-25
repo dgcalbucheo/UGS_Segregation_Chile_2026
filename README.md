@@ -60,12 +60,13 @@ The pipeline reconstructs the methodology used in the manuscript, including:
 
 ## Sources
 
-- National Institute of Statistics (INE), Chile.
-- Observatorio de Ciudades UC (ISMT 2022).
-- Google Earth Engine (Landsat 8 imagery).
-- WorldClim Version 2.
+- Urban green space database – Public park and urban green space cartography used as the base layer for the study: https://storymaps.arcgis.com/stories/391dac6ee0c3438fbf186aed3ea1cff1
+- Territorial Socio-Material Index (ISMT 2022) – Observatorio de Ciudades UC: https://ideocuc-ocuc.hub.arcgis.com/maps/c83a1ea2c31b4850b65a481b21e4919f/about
+- 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
+- Landsat 8 satellite imagery – Google Earth Engine Data Catalog: https://earthengine.google.com/
+- WorldClim Version 2 – Global climate data: https://www.worldclim.org/
 - 2017 Chilean Population and Housing Census.
-- Mobile phone mobility records (XDR, MOVISTAR).
+- Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in the repository under data/.
 
 ---
 
