@@ -65,7 +65,6 @@ The pipeline reconstructs the methodology used in the manuscript, including:
 - 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
 - Landsat 8 satellite imagery – Google Earth Engine Data Catalog: https://earthengine.google.com/
 - WorldClim Version 2 – Global climate data: https://www.worldclim.org/
-- 2017 Chilean Population and Housing Census.
 - Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in the repository under data/.
 
 ---
