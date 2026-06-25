@@ -1,8 +1,7 @@
 Repository accompanying the manuscript:
 
-**Socioeconomic Segregation and Park Greenness: Insights Across a Strong Latitudinal Gradient**
+# Socioeconomic Segregation and Park Greenness: Insights Across a Strong Latitudinal Gradient
 
-**Authors**
 
 Diego Calbucheo $^{a}$ & Horacio Samaniego $^{a,b,*}$
 
