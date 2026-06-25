@@ -11,11 +11,12 @@ data/voronoi_chile.zip
 data/CALIDAD_pzpq_2019/
 
 # RStudio
-.Rproj.user/
-.Rhistory
+*.Rproj
+.Rproj.user/.Rhistory
 .RData
 .Ruserdata
 
 # Rendered documents
 *.html
 *.pdf
+.Rproj.user
