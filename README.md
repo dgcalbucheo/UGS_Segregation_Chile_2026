@@ -1,6 +1,6 @@
 Repository accompanying the manuscript:
 
-> **Socioeconomic Segregation and Park Greenness: Insights Across a Strong Latitudinal Gradient**
+**Socioeconomic Segregation and Park Greenness: Insights Across a Strong Latitudinal Gradient**
 
 **Authors**
 
@@ -12,9 +12,6 @@ $^{b}$ Instituto de Sistemas Complejos de Valparaı́so, Subida Artillerı́a 47
 
 $^{*}$ Corresponding author (horacio@ecoinformatica.cl)
 
->
-
----
 
 ## Abstract
 
@@ -32,7 +29,7 @@ parks in affluent neighborhoods attract a more diverse user base throughout the 
 structural and administrative factors are the primary drivers of green inequality rather than climatic constraints. 
 Equitable urban planning must evolve beyond simple provision targets to prioritize the quality and social integration 
 capacity of urban green spaces.
----
+
 
 ## Repository overview
 
@@ -243,7 +240,7 @@ All relative paths are managed using the `here` package.
 
 If you use this repository, please cite:
 
-Calbucheo D. et al.
+Calbucheo D. & Samaniego, H.
 
 Socioeconomic Segregation and Park Greenness:
 Insights Across a Strong Latitudinal Gradient.
