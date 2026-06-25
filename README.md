@@ -56,7 +56,9 @@ The pipeline reconstructs the methodology used in the manuscript, including:
   - `worldclim/`: Climatic variables (temperature and precipitation).
   - `Table_parks.csv`: Official analytical park table.
   - `Table_entropy.csv`: Official analytical entropy table.
-  - `UGS_cartography.gpkg`: Official supplementary cartographic package containing the `parks`, `ismt`, and `voronoi` layers used for spatial documentation and reproducibility.
+  - `UGS_cartography.gpkg`: Official supplementary cartographic package containing the park, ISMT, and Voronoi layers used throughout the manuscript.
+  - `mobility_supplementary.zip`: Supplementary hourly park social entropy datasets derived from anonymized mobile phone records.
+  - `voronoi_chile.zip`: Voronoi polygons derived from mobile phone antenna locations and linked to ISMT values.
 
 ## Sources
 
@@ -65,8 +67,7 @@ The pipeline reconstructs the methodology used in the manuscript, including:
 - 2017 Chilean Population and Housing Census – National Institute of Statistics (INE), Chile: https://www.ine.gob.cl/
 - Landsat 8 satellite imagery – Google Earth Engine Data Catalog: https://earthengine.google.com/
 - WorldClim Version 2 – Global climate data: https://www.worldclim.org/
-- Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in the repository under data/.
-
+- Derived mobility and spatial datasets – Hourly park social entropy and Voronoi polygons derived from anonymized mobile phone records (XDR, MOVISTAR) are available in this repository under `data/`.
 ---
 
 ## Supporting Information
@@ -74,8 +75,6 @@ The pipeline reconstructs the methodology used in the manuscript, including:
 The repository reproduces the complete analytical workflow described in the manuscript, 
 including the supplementary analyses (ANOVA, Tukey tests, dendrograms) and the generation of 
 the supplementary spatial layers accompanying the publication.
-
-
 
 ---
 
