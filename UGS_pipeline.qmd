@@ -1,0 +1,2287 @@
+---
+title: "UGS_pipeline"
+format: html
+---
+# =====================================================
+# Socioeconomic Segregation and Park Greenness – Reproducible analysis (PAPER)
+# =====================================================
+This script reproduces the analyses reported in the manuscript.
+It uses final, processed datasets and follows the Results structure.
+
+# -----------------------------------------------------
+# 0. Setup
+# -----------------------------------------------------
+
+# 0.1 Packages
+```{r}
+#| message: false
+#| warning: false
+#| include: false
+
+pckgs <- c(
+  "here", "dplyr", "tidyr", "readr", "readxl", "stringr", "forcats", "purrr",
+  "ggplot2", "sf", "terra", "tmap", "janitor", "broom"
+)
+
+invisible(lapply(pckgs, require, character.only = TRUE))
+```
+
+# 0.2 Global options
+```{r}
+options(
+  scipen = 999,
+  dplyr.summarise.inform = FALSE
+)
+
+sf::sf_use_s2(FALSE)
+```
+
+# 0.3 Paths
+```{r}
+dir_data <- here::here("data")
+
+dir_figures <- here::here("outputs", "figures")
+dir_tables <- here::here("outputs", "tables")
+dir_supplementary <- here::here("outputs", "supplementary")
+
+dirs <- c(
+  dir_figures,
+  dir_tables,
+  dir_supplementary
+)
+
+invisible(lapply(
+  dirs,
+  dir.create,
+  recursive = TRUE,
+  showWarnings = FALSE
+))
+```
+
+
+# 0.4 Constants
+```{r}
+city_levels <- c(
+  "Antofagasta",
+  "La Serena",
+  "Valparaíso",
+  "Santiago",
+  "Concepción",
+  "Puerto Montt"
+)
+
+as_city_factor <- function(x) {
+  factor(x, levels = city_levels, ordered = TRUE)
+}
+
+city_recode <- c(
+  "Coquimbo-La Serena" = "La Serena",
+  "Gran Valparaíso" = "Valparaíso",
+  "Gran Santiago" = "Santiago",
+  "Gran Concepción" = "Concepción"
+)
+
+ismt_levels <- c(
+  "Low",
+  "Medium Low",
+  "Medium High",
+  "High"
+)
+
+as_ismt_factor <- function(x) {
+  factor(x, levels = ismt_levels, ordered = TRUE)
+}
+```
+
+# 0.5 Plot theme
+```{r}
+theme_ugs <- function(base_size = 11) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      panel.grid.minor = element_blank(),
+      plot.title = element_text(face = "bold"),
+      axis.title = element_text(face = "bold"),
+      legend.title = element_text(face = "bold")
+    )
+}
+```
+
+
+# -----------------------------------------------------
+# 1. Data loading
+# -----------------------------------------------------
+
+# 1.1 Official supplementary layers
+```{r}
+# Path ----
+
+official_gpkg <- here::here("data", "UGS_cartography.gpkg")
+
+# Available layers ----
+
+sf::st_layers(official_gpkg)
+
+# Load layers ----
+
+parks_official_sf <- sf::st_read(
+  official_gpkg,
+  layer = "parks",
+  quiet = TRUE
+)
+
+ismt_official_sf <- sf::st_read(
+  official_gpkg,
+  layer = "ismt",
+  quiet = TRUE
+)
+
+voronoi_official_sf <- sf::st_read(
+  official_gpkg,
+  layer = "voronoi",
+  quiet = TRUE
+)
+
+# Checks ----
+
+official_layers_check <- tibble::tibble(
+  layer = c("parks", "ismt", "voronoi"),
+  object = c("parks_official_sf", "ismt_official_sf", "voronoi_official_sf"),
+  n_features = c(
+    nrow(parks_official_sf),
+    nrow(ismt_official_sf),
+    nrow(voronoi_official_sf)
+  ),
+  crs_epsg = c(
+    sf::st_crs(parks_official_sf)$epsg,
+    sf::st_crs(ismt_official_sf)$epsg,
+    sf::st_crs(voronoi_official_sf)$epsg
+  )
+)
+
+official_layers_check
+```
+
+# 1.2 Original raw spatial data
+```{r}
+# Parks ----
+
+parks_raw_sf <- sf::st_read(
+  here::here("data", "CALIDAD_pzpq_2019", "CALIDAD_pzpq_2019.shp"),
+  quiet = TRUE
+) %>%
+  sf::st_transform(32719) %>%
+  dplyr::mutate(
+    CITY = dplyr::case_when(
+      PROVINCIA == "ANTOFAGASTA" ~ "Antofagasta",
+      COMUNA %in% c("LA SERENA", "COQUIMBO") ~ "La Serena",
+      COMUNA %in% c("VALPARAÍSO", "VIÑA DEL MAR", "QUILPUÉ", "VILLA ALEMANA") ~ "Valparaíso",
+      PROVINCIA == "SANTIAGO" |
+        COMUNA %in% c(
+          "COLINA", "LAMPA", "PADRE HURTADO",
+          "PEÑAFLOR", "PIRQUE", "PUENTE ALTO", "SAN BERNARDO"
+        ) ~ "Santiago",
+      COMUNA %in% c(
+        "CONCEPCIÓN", "TALCAHUANO", "HUALPÉN", "PENCO",
+        "CORONEL", "SAN PEDRO DE LA PAZ"
+      ) ~ "Concepción",
+      COMUNA %in% c("PUERTO MONTT", "PUERTO VARAS") ~ "Puerto Montt",
+      TRUE ~ NA_character_
+    ),
+    CITY = as_city_factor(CITY)
+  ) %>%
+  dplyr::filter(!is.na(CITY))
+
+
+# ISMT ----
+
+ismt_raw_sf <- sf::st_read(
+  here::here("data", "ISMT_2022_actualizado", "ISMT_2022_actualizado.shp"),
+  quiet = TRUE
+) %>%
+  sf::st_transform(32719) %>%
+  dplyr::mutate(
+    CITY = dplyr::case_when(
+      provincia == "ANTOFAGASTA" ~ "Antofagasta",
+      provincia == "COQUIMBO" ~ "La Serena",
+      comuna %in% c("VALPARAISO", "VINA_DEL_MAR", "QUILPUE", "VILLA_ALEMANA") ~ "Valparaíso",
+      provincia == "SANTIAGO" |
+        comuna %in% c(
+          "COLINA", "LAMPA", "PADRE_HURTADO", "PENAFLOR",
+          "PIRQUE", "PUENTE_ALTO", "SAN_BERNARDO"
+        ) ~ "Santiago",
+      comuna %in% c(
+        "CONCEPCION", "TALCAHUANO", "HUALPEN", "PENCO",
+        "CORONEL", "SAN_PEDRO_DE_LA_PAZ"
+      ) ~ "Concepción",
+      comuna %in% c("PUERTO_MONTT", "PUERTO_VARAS") ~ "Puerto Montt",
+      TRUE ~ NA_character_
+    ),
+    CITY = as_city_factor(CITY)
+  ) %>%
+  dplyr::filter(!is.na(CITY))
+
+
+# Voronoi ----
+
+voronoi_raw_sf <- sf::st_read(
+  here::here("data", "voronoi_chile", "voronoi_ismt_chile.gpkg"),
+  quiet = TRUE
+) %>%
+  sf::st_transform(32719)
+
+
+# Checks ----
+
+raw_spatial_check <- tibble::tibble(
+  object = c("parks_raw_sf", "ismt_raw_sf", "voronoi_raw_sf"),
+  n_features = c(
+    nrow(parks_raw_sf),
+    nrow(ismt_raw_sf),
+    nrow(voronoi_raw_sf)
+  ),
+  crs_epsg = c(
+    sf::st_crs(parks_raw_sf)$epsg,
+    sf::st_crs(ismt_raw_sf)$epsg,
+    sf::st_crs(voronoi_raw_sf)$epsg
+  )
+)
+
+raw_spatial_check
+```
+
+# 1.3 Raw mobility data
+```{r}
+entropy_files <- list.files(
+  path = here::here("data", "voronoi_chile"),
+  pattern = "^H_.*\\.csv$",
+  full.names = TRUE
+)
+
+entropy_raw_tbl <- purrr::map_dfr(
+  entropy_files,
+  ~ readr::read_csv(.x, show_col_types = FALSE) %>%
+    janitor::clean_names() %>%
+    dplyr::mutate(source_file = basename(.x))
+) %>%
+  dplyr::mutate(
+    CITY = dplyr::case_when(
+      source_file == "H_antofa.csv" ~ "Antofagasta",
+      source_file == "H_laserena.csv" ~ "La Serena",
+      source_file == "H_valpo.csv" ~ "Valparaíso",
+      source_file == "H_stgo.csv" ~ "Santiago",
+      source_file == "H_conce.csv" ~ "Concepción",
+      source_file == "H_ptomontt.csv" ~ "Puerto Montt",
+      TRUE ~ NA_character_
+    ),
+    CITY = as_city_factor(CITY)
+  )
+
+# Checks -----
+
+entropy_raw_tbl %>%
+  dplyr::count(CITY)
+
+entropy_raw_tbl %>%
+  dplyr::summarise(
+    rows = dplyr::n(),
+    antennas = dplyr::n_distinct(antena),
+    hours = dplyr::n_distinct(hour)
+  )
+```
+
+
+# 1.4 NDVI rasters
+```{r}
+ndvi_files <- list(
+  "Antofagasta"  = "ndvi_antofa_feb2016.tif",
+  "La Serena"   = "ndvi_laserena_feb2016.tif",
+  "Valparaíso"  = "ndvi_valparaiso_feb2016.tif",
+  "Santiago"    = "ndvi_santiago_mar2016.tif",
+  "Concepción"  = "ndvi_conce_feb2016.tif",
+  "Puerto Montt" = "ndvi_ptomontt_mar2016.tif"
+)
+
+ndvi_rasters <- purrr::map(
+  ndvi_files,
+  ~ raster::raster(here::here("data", "NDVI_rasters_2016", .x))
+)
+
+ndvi_rasters <- purrr::map(
+  ndvi_rasters,
+  ~ {
+    r <- .x
+    r[r < 0] <- NA
+    r
+  }
+)
+
+# Checks
+purrr::imap_dfr(
+  ndvi_rasters,
+  ~ tibble::tibble(
+    CITY = .y,
+    min_ndvi = raster::cellStats(.x, "min"),
+    max_ndvi = raster::cellStats(.x, "max"),
+    mean_ndvi = raster::cellStats(.x, "mean"),
+    n_cells = raster::ncell(.x),
+    crs = as.character(raster::crs(.x))
+  )
+)
+
+```
+
+# 1.5 Official analytical tables
+```{r}
+parks_official_tbl <- readr::read_csv(
+  here::here("data", "Table_parks.csv"),
+  show_col_types = FALSE
+)
+
+entropy_official_tbl <- readr::read_csv(
+  here::here("data", "Table_entropy.csv"),
+  show_col_types = FALSE
+)
+
+# Checks ----
+
+parks_official_tbl %>%
+  dplyr::glimpse()
+
+entropy_official_tbl %>%
+  dplyr::glimpse()
+
+parks_official_tbl %>%
+  dplyr::count(CITY) %>%
+  print(n = Inf)
+
+entropy_official_tbl %>%
+  dplyr::count(CITY) %>%
+  print(n = Inf)
+```
+
+
+# 1.6 Ancillary data
+```{r}
+# Population / density data ----
+
+population_raw_tbl <- readxl::read_excel(
+  here::here("data", "poblaciones.xlsx")
+) %>%
+  janitor::clean_names()
+
+
+# Urban polygons ----
+
+urban_raw_sf <- sf::st_read(
+  here::here("data", "Mapa_Ciudades_2017", "Ciudades_2017.shp"),
+  quiet = TRUE
+)
+
+
+# WorldClim temperature rasters ----
+
+tavg_files <- list.files(
+  here::here("data", "worldclim", "tavg"),
+  pattern = "\\.tif$",
+  full.names = TRUE
+)
+
+tavg_raw_rasters <- terra::rast(tavg_files)
+
+
+# WorldClim precipitation rasters ----
+
+prec_files <- list.files(
+  here::here("data", "worldclim", "prec"),
+  pattern = "\\.tif$",
+  full.names = TRUE
+)
+
+prec_raw_rasters <- terra::rast(prec_files)
+
+
+# Checks ----
+
+ancillary_check <- tibble::tibble(
+  object = c(
+    "population_raw_tbl",
+    "urban_raw_sf",
+    "tavg_raw_rasters",
+    "prec_raw_rasters"
+  ),
+  n = c(
+    nrow(population_raw_tbl),
+    nrow(urban_raw_sf),
+    terra::nlyr(tavg_raw_rasters),
+    terra::nlyr(prec_raw_rasters)
+  )
+)
+
+ancillary_check
+```
+
+
+# -----------------------------------------------------
+# 2. Data preparation
+# -----------------------------------------------------
+## 2.1 Prepare park geometries
+```{r}
+parks_sf <- parks_raw_sf %>%
+  mutate(
+    ID = as.character(ID_TEXT),
+    CITY = as.character(CITY),
+    AP = as.numeric(st_area(.))
+  ) %>%
+  group_by(ID) %>%
+  mutate(
+    AT = sum(AP, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+ismt_sf <- ismt_raw_sf
+
+# Quick checks
+nrow(parks_sf)
+sum(is.na(parks_sf$ID))
+sum(is.na(parks_sf$CITY))
+summary(parks_sf$AP)
+summary(parks_sf$AT)
+
+# AP represents the area of each individual park polygon.
+# Several polygons may share the same park ID.
+#
+# AT represents the total area of each park (sum of all polygons
+# sharing the same ID) and is later used as the denominator for
+# area-weighted spatial overlays.
+```
+
+```{r}
+parks_sf %>%
+  st_drop_geometry() %>%
+  arrange(desc(AT)) %>%
+  select(ID, CITY, NOMBRE_EP, COMUNA, AT) %>%
+  head(10)
+```
+
+## 2.2 ISMT reconstruction
+```{r}
+# Intersect parks with ISMT polygons.
+# This splits parks that overlap more than one census zone.
+parks_ismt_inter <- st_intersection(
+  parks_sf,
+  ismt_sf
+)
+
+# Recalculate partial area after intersection.
+# AT represents the original total park area.
+parks_ismt_inter <- parks_ismt_inter %>%
+  mutate(
+    AP_inter = as.numeric(st_area(.)),
+    area_weight = AP_inter / AT,
+    ismt_weighted = ismtpn * area_weight
+  )
+
+# Calculate area-weighted ISMT for each park
+parks_ismt_tbl <- parks_ismt_inter %>%
+  st_drop_geometry() %>%
+  group_by(ID) %>%
+  summarise(
+    ISMT = sum(ismt_weighted, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Join reconstructed ISMT
+parks_sf <- parks_sf %>%
+  select(-any_of("ISMT")) %>%
+  left_join(parks_ismt_tbl, by = "ID")
+
+# Quick checks
+nrow(parks_sf)
+sum(is.na(parks_sf$ISMT))
+summary(parks_sf$ISMT)
+```
+
+###2.2.1 ISMT categorization
+```{r}
+# Assign city-specific ISMT categories used in the original analysis.
+#
+# These thresholds were defined in the original workflow and were based on
+# the distribution of socioeconomic status associated with mobile-phone users.
+# The underlying dataset used to derive these thresholds is not available
+# in the current reproducibility package.
+#
+# Therefore, the original thresholds are reproduced here unchanged to ensure
+# full consistency with the published analyses.
+#
+# NOTE:
+# ISMT_LEVEL is not derived from the reconstructed park ISMT distribution.
+# Categories reproduce the original city-specific thresholds used in the study.
+
+parks_sf <- parks_sf %>%
+  mutate(
+    ISMT_LEVEL = case_when(
+
+      CITY == "Antofagasta" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.166461, 0.527227, 0.630018, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      CITY == "La Serena" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.544723, 0.592560, 0.663751, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      CITY == "Valparaíso" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.547882, 0.609700, 0.675941, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      CITY == "Santiago" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.535257, 0.618865, 0.733090, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      CITY == "Concepción" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.544723, 0.592560, 0.663751, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      CITY == "Puerto Montt" ~ as.character(
+        cut(
+          ISMT,
+          breaks = c(0, 0.521255, 0.559032, 0.648573, 1),
+          labels = c("Low", "Medium Low", "Medium High", "High"),
+          include.lowest = TRUE
+        )
+      ),
+
+      TRUE ~ NA_character_
+    ),
+
+    ISMT_LEVEL = as_ismt_factor(ISMT_LEVEL)
+  )
+
+# Quick checks
+parks_sf %>%
+  st_drop_geometry() %>%
+  count(CITY, ISMT_LEVEL)
+```
+
+### 2.2.2 Validation
+```{r}
+# ============================================================
+# Validation against official analytical table
+# ============================================================
+
+table_parks_old_id <- parks_official_tbl %>%
+  mutate(
+    ID = as.character(ID)
+  ) %>%
+  group_by(ID) %>%
+  summarise(
+    ISMT_old = first(na.omit(ISMT)),
+    n_old = n(),
+    .groups = "drop"
+  )
+
+parks_ismt_id <- parks_sf %>%
+  st_drop_geometry() %>%
+  group_by(ID) %>%
+  summarise(
+    ISMT_new = first(na.omit(ISMT)),
+    n_new = n(),
+    .groups = "drop"
+  )
+
+check_ismt <- parks_ismt_id %>%
+  inner_join(
+    table_parks_old_id,
+    by = "ID"
+  ) %>%
+  mutate(
+    diff = abs(ISMT_new - ISMT_old)
+  )
+
+# Number of matching parks
+nrow(check_ismt)
+
+# Correlation between reconstructed and official ISMT
+cor(
+  check_ismt$ISMT_new,
+  check_ismt$ISMT_old,
+  use = "complete.obs"
+)
+
+# Absolute differences
+summary(check_ismt$diff)
+
+# Mean absolute difference
+mean(check_ismt$diff, na.rm = TRUE)
+
+# Parks with largest discrepancies
+check_ismt %>%
+  arrange(desc(diff)) %>%
+  select(
+    ID,
+    ISMT_old,
+    ISMT_new,
+    diff,
+    n_old,
+    n_new
+  ) %>%
+  head(20)
+
+# Validation summary
+#
+# The original analyses were conducted using city-specific scripts.
+# Here, the workflow was reconstructed into a unified reproducible pipeline.
+#
+# Comparison against the official analytical table:
+# - Matching parks: 10,908
+# - Pearson correlation (ISMT): ~0.9994
+# - Mean absolute difference: ~0.00012
+#
+# Small discrepancies are expected due to differences in polygon
+# fragmentation and geometry handling between the original and
+# reconstructed workflows.
+```
+
+
+## 2.3 NDVI reconstruction
+```{r}
+# ============================================================
+# 2.3 NDVI reconstruction
+# ============================================================
+
+# Reproject NDVI rasters to the park CRS (EPSG:32719)
+# This reproduces the original workflow used in the city-specific scripts.
+
+ndvi_rasters_utm <- purrr::map(
+  ndvi_rasters,
+  ~ {
+    r <- raster::projectRaster(
+      .x,
+      crs = sf::st_crs(parks_sf)$wkt
+    )
+
+    r[r < 0] <- NA
+
+    r
+  }
+)
+
+# Remove previous NDVI column if present
+
+parks_sf <- parks_sf %>%
+  dplyr::select(-dplyr::any_of("mean_ndvi")) %>%
+  dplyr::mutate(mean_ndvi = NA_real_)
+
+# Extract mean NDVI by city
+
+for (city in names(ndvi_rasters_utm)) {
+
+  parks_city <- parks_sf %>%
+    dplyr::filter(CITY == city)
+
+  parks_sf$mean_ndvi[parks_sf$CITY == city] <-
+    raster::extract(
+      ndvi_rasters_utm[[city]],
+      as(parks_city, "Spatial"),
+      fun = mean,
+      na.rm = TRUE
+    )
+}
+
+# Quick checks
+
+nrow(parks_sf)
+
+sum(is.na(parks_sf$mean_ndvi))
+
+summary(parks_sf$mean_ndvi)
+```
+### 2.3.1 Validation
+```{r}
+# ============================================================
+# 2.3.1 Validation against official analytical table
+# ============================================================
+
+table_parks_ndvi <- parks_official_tbl %>%
+  dplyr::mutate(
+    ID = as.character(ID)
+  ) %>%
+  dplyr::group_by(ID) %>%
+  dplyr::summarise(
+    mean_ndvi_old = first(na.omit(MEAN_NDVI)),
+    .groups = "drop"
+  )
+
+parks_ndvi <- parks_sf %>%
+  sf::st_drop_geometry() %>%
+  dplyr::group_by(ID) %>%
+  dplyr::summarise(
+    mean_ndvi_new = first(na.omit(mean_ndvi)),
+    .groups = "drop"
+  )
+
+check_ndvi <- parks_ndvi %>%
+  dplyr::inner_join(
+    table_parks_ndvi,
+    by = "ID"
+  ) %>%
+  dplyr::mutate(
+    diff = abs(mean_ndvi_new - mean_ndvi_old)
+  )
+
+# Matching parks
+
+nrow(check_ndvi)
+
+# Correlation
+
+cor(
+  check_ndvi$mean_ndvi_new,
+  check_ndvi$mean_ndvi_old,
+  use = "complete.obs"
+)
+
+# Absolute differences
+
+summary(check_ndvi$diff)
+
+# Mean absolute difference
+
+mean(check_ndvi$diff, na.rm = TRUE)
+
+# Largest discrepancies
+
+check_ndvi %>%
+  dplyr::arrange(desc(diff)) %>%
+  dplyr::slice_head(n = 20)
+
+# Validation summary:
+# - Matching parks: 10,908
+# - Pearson correlation (NDVI): 0.9837
+# - Mean absolute difference: 0.0028
+# - 75% of parks have zero difference
+# - 216 parks show differences > 0.05, mostly in Santiago
+#
+# The remaining discrepancies likely reflect minor differences between the
+# original city-specific scripts and the unified reconstruction pipeline.
+# Published results are reproduced using parks_official_tbl.
+```
+
+## 2.4 Entropy reconstruction
+The entropy reconstruction reproduced the expected analytical structure
+(park × hour records across the six cities), but did not fully reproduce the
+published entropy values. After harmonizing city names, the validation matched
+261,589 park-hour records across 10,903 parks, with an overall Pearson
+correlation of 0.851 and a mean absolute difference of 0.027. Antofagasta was
+reproduced exactly, while the remaining cities showed moderate deviations.
+
+Because the published results are replicated from the official analytical
+table (`Table_entropy.csv`), the reconstructed entropy object is retained only
+as methodological documentation. The source of the remaining discrepancies is
+left as a documented limitation of the reconstruction and should be revisited
+by comparing the raw city-specific H/N input files used in the original
+analysis.
+```{r}
+parks_voronoi_inter <- st_intersection(
+  voronoi_raw_sf,
+  parks_sf
+) %>%
+  mutate(
+    AP_voronoi = as.numeric(st_area(.)),
+    area_weight_voronoi = AP_voronoi / AT
+  )
+
+parks_entropy_inter <- parks_voronoi_inter %>%
+  st_drop_geometry() %>%
+  left_join(
+    entropy_raw_tbl,
+    by = c("ID_OLD" = "antena")
+  )
+
+entropy_reconstructed_tbl <- parks_entropy_inter %>%
+  filter(!is.na(h)) %>%
+  group_by(
+    ID = ID.1,
+    CITY = CITY.x,
+    hour
+  ) %>%
+  summarise(
+    H = sum(h * area_weight_voronoi, na.rm = TRUE),
+    N = sum(n * area_weight_voronoi, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+## 2.5 Analytical categorization
+```{r}
+parks_analysis_tbl <- parks_official_tbl %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = recode(
+      CITY,
+      "Coquimbo-La Serena" = "La Serena",
+      "Gran Valparaíso" = "Valparaíso",
+      "Gran Santiago" = "Santiago",
+      "Gran Concepción" = "Concepción"
+    )
+  ) %>%
+  group_by(CITY) %>%
+  mutate(
+    GREENNESS_LEVEL = cut(
+      MEAN_NDVI,
+      breaks = quantile(
+        MEAN_NDVI,
+        probs = seq(0, 1, 1/3),
+        na.rm = TRUE
+      ),
+      labels = c(
+        "Low Greenness",
+        "Medium Greenness",
+        "High Greenness"
+      ),
+      include.lowest = TRUE
+    )
+  ) %>%
+  ungroup()
+
+entropy_analysis_tbl <- entropy_official_tbl %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = recode(
+      CITY,
+      "Coquimbo-La Serena" = "La Serena",
+      "Gran Valparaíso" = "Valparaíso",
+      "Gran Santiago" = "Santiago",
+      "Gran Concepción" = "Concepción"
+    )
+  )
+```
+
+# -----------------------------------------------------
+# 3. Results
+# -----------------------------------------------------
+# Fig. 2: NDVI distribution by city
+```{r}
+# Prepare plotting data
+fig2_ndvi_data <- parks_analysis_tbl %>%
+  mutate(
+    CITY = factor(
+      CITY,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    )
+  ) %>%
+  filter(
+    !is.na(MEAN_NDVI),
+    !is.na(CITY)
+  )
+
+# Check
+fig2_ndvi_data %>%
+  count(CITY)
+
+summary(fig2_ndvi_data$MEAN_NDVI)
+
+# Plot
+fig2_ndvi_hist <- ggplot(
+  fig2_ndvi_data,
+  aes(x = MEAN_NDVI)
+) +
+  geom_histogram(
+    bins = 30,
+    color = "black",
+    fill = "grey75"
+  ) +
+  facet_wrap(
+    ~ CITY,
+    ncol = 2,
+    scales = "free_y"
+  ) +
+  labs(
+    x = "Mean NDVI",
+    y = "Number of parks"
+  ) +
+  theme_bw() +
+  theme(
+    strip.background = element_rect(
+      fill = "grey90",
+      color = "black"
+    ),
+    strip.text = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+fig2_ndvi_hist
+
+# Export
+ggsave(
+  filename = here("outputs", "figures", "fig2_ndvi_histogram_by_city.png"),
+  plot = fig2_ndvi_hist,
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+ggsave(
+  filename = here("outputs", "figures", "fig2_ndvi_histogram_by_city.pdf"),
+  plot = fig2_ndvi_hist,
+  width = 8,
+  height = 6
+)
+```
+
+
+#Fig. 3: NDVI x POPULATION
+```{r}
+# -----------------------------------------------------
+# 3.1 Greenness of UGS
+# Fig. 3 – City population size and park greenness
+# -----------------------------------------------------
+
+# Mean NDVI by city
+mean_ndvi_city <- parks_analysis_tbl %>%
+  group_by(CITY) %>%
+  summarise(
+    NDVI_mean = mean(MEAN_NDVI, na.rm = TRUE),
+    NDVI_se = sd(MEAN_NDVI, na.rm = TRUE) / sqrt(sum(!is.na(MEAN_NDVI))),
+    .groups = "drop"
+  )
+
+# Population data
+# Population expressed as thousands of inhabitants.
+# These values reproduce those used in the original figure script.
+population_city_tbl <- tibble::tribble(
+  ~CITY,            ~population_thousands,
+  "Antofagasta",              361.9,
+  "La Serena",                534.2,
+  "Valparaíso",               909.2,
+  "Santiago",                6254.3,
+  "Concepción",              1187.2,
+  "Puerto Montt",             308.1
+)
+
+# Join data
+fig3_population_ndvi_data <- mean_ndvi_city %>%
+  left_join(
+    population_city_tbl,
+    by = "CITY"
+  ) %>%
+  mutate(
+    CITY = factor(
+      CITY,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    )
+  )
+
+fig3_population_ndvi_data
+
+# Export supplementary table
+write_csv(
+  fig3_population_ndvi_data,
+  here("outputs", "tables", "fig3_population_ndvi_summary.csv")
+)
+
+# Plot
+city_colors <- c(
+  "Antofagasta"  = "#66c2a5",
+  "La Serena"    = "#fc8d62",
+  "Valparaíso"   = "#8da0cb",
+  "Concepción"   = "#a6d854",
+  "Santiago"     = "#e78ac3",
+  "Puerto Montt" = "#d8b60a"
+)
+
+fig3_population_ndvi <- ggplot(
+  fig3_population_ndvi_data,
+  aes(
+    x = population_thousands,
+    y = NDVI_mean,
+    label = CITY,
+    color = CITY
+  )
+) +
+  geom_pointrange(
+    aes(
+      ymin = NDVI_mean - 1.96 * NDVI_se,
+      ymax = NDVI_mean + 1.96 * NDVI_se
+    ),
+    linewidth = 0.7,
+    fatten = 4,
+    alpha = 0.9
+  ) +
+  ggrepel::geom_text_repel(
+    size = 4,
+    show.legend = FALSE
+  ) +
+  scale_x_log10(
+    breaks = c(300, 500, 1000, 2000, 5000),
+    labels = c("300", "500", "1,000", "2,000", "5,000")
+  ) +
+  scale_color_manual(values = city_colors) +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = expression("Population " %*% 10^3 * " - log scale"),
+    y = "NDVI"
+  ) +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    axis.line  = element_line(linewidth = 0.35, colour = "black"),
+    axis.ticks = element_line(linewidth = 0.35, colour = "black")
+  )
+
+fig3_population_ndvi
+
+# Export figure
+ggsave(
+  filename = here("outputs", "figures", "fig3_population_ndvi.pdf"),
+  plot = fig3_population_ndvi,
+  device = cairo_pdf,
+  width = 7,
+  height = 4.5,
+  dpi = 300
+)
+
+ggsave(
+  filename = here("outputs", "figures", "fig3_population_ndvi.png"),
+  plot = fig3_population_ndvi,
+  width = 7,
+  height = 4.5,
+  dpi = 300
+)
+```
+
+
+#Fig. 4: NDVI x ISMT category
+```{r}
+# -----------------------------------------------------
+# 3.2 Sociomaterial context
+# Fig. 4 + Table A.2 – Greenness by ISMT category
+# -----------------------------------------------------
+
+ismt_order <- c(
+  "Low",
+  "Medium Low",
+  "Medium High",
+  "High"
+)
+
+city_labels <- c(
+  "Antofagasta"  = "A Antofagasta",
+  "La Serena"    = "B La Serena",
+  "Valparaíso"   = "C Valparaíso",
+  "Santiago"     = "D Santiago",
+  "Concepción"   = "E Concepción",
+  "Puerto Montt" = "F Puerto Montt"
+)
+
+fig4_ndvi_ismt_data <- parks_analysis_tbl %>%
+  filter(
+    !is.na(CITY),
+    !is.na(MEAN_NDVI),
+    !is.na(ISMT_LEVEL)
+  ) %>%
+  mutate(
+    CITY = factor(
+      CITY,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    ),
+    ISMT_LEVEL = factor(
+      ISMT_LEVEL,
+      levels = ismt_order
+    )
+  ) %>%
+  filter(
+    !is.na(CITY),
+    !is.na(ISMT_LEVEL)
+  )
+
+# Check
+fig4_ndvi_ismt_data %>%
+  count(CITY, ISMT_LEVEL)
+
+# ANOVA by city
+anova_ndvi_ismt_tbl <- fig4_ndvi_ismt_data %>%
+  group_by(CITY) %>%
+  group_modify(~ {
+    mod <- aov(MEAN_NDVI ~ ISMT_LEVEL, data = .x)
+    broom::tidy(mod)
+  }) %>%
+  ungroup()
+
+write_csv(
+  anova_ndvi_ismt_tbl,
+  here("outputs", "tables", "fig4_anova_ndvi_ismt_by_city.csv")
+)
+
+# Table A.2 – Tukey HSD by city
+tukey_ndvi_ismt_tbl <- fig4_ndvi_ismt_data %>%
+  group_by(CITY) %>%
+  group_modify(~ {
+    mod <- aov(MEAN_NDVI ~ ISMT_LEVEL, data = .x)
+    tk <- TukeyHSD(mod)$ISMT_LEVEL
+
+    as_tibble(tk, rownames = "comparison")
+  }) %>%
+  ungroup() %>%
+  rename(
+    lower = lwr,
+    upper = upr,
+    p_adj = `p adj`
+  ) %>%
+  mutate(
+    significant = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE ~ "ns"
+    )
+  )
+
+write_csv(
+  tukey_ndvi_ismt_tbl,
+  here("outputs", "tables", "table_a2_tukey_ndvi_ismt_by_city.csv")
+)
+
+# Plot
+fig4_ndvi_ismt <- ggplot(
+  fig4_ndvi_ismt_data,
+  aes(
+    x = ISMT_LEVEL,
+    y = MEAN_NDVI,
+    colour = ISMT_LEVEL
+  )
+) +
+  geom_boxplot(
+    outlier.alpha = 0.35,
+    width = 0.65
+  ) +
+  facet_wrap(
+    ~ CITY,
+    ncol = 2,
+    labeller = labeller(CITY = city_labels)
+  ) +
+  labs(
+    x = "ISMT category",
+    y = "Mean NDVI"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    panel.grid.minor = element_blank()
+  )
+
+fig4_ndvi_ismt
+
+# Export figure
+ggsave(
+  filename = here("outputs", "figures", "fig4_ndvi_ismt_boxplots.pdf"),
+  plot = fig4_ndvi_ismt,
+  device = cairo_pdf,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+
+ggsave(
+  filename = here("outputs", "figures", "fig4_ndvi_ismt_boxplots.png"),
+  plot = fig4_ndvi_ismt,
+  width = 6,
+  height = 10,
+  dpi = 300
+)
+```
+
+
+
+
+#Fig. 5: Sankey diagrams
+```{r}
+# Sankey data for all cities
+sankey_greenness_ismt_links <- parks_analysis_tbl %>%
+  filter(
+    !is.na(CITY),
+    !is.na(GREENNESS_LEVEL),
+    !is.na(ISMT_LEVEL)
+  ) %>%
+  count(
+    CITY,
+    source = GREENNESS_LEVEL,
+    target = ISMT_LEVEL,
+    name = "value"
+  )
+
+write_csv(
+  sankey_greenness_ismt_links,
+  here("outputs", "tables", "sankey_greenness_ismt_links.csv")
+)
+
+# Plot one example city
+fig5_sankey_antofagasta <- make_sankey_greenness_ismt(
+  data = parks_analysis_tbl,
+  city_name = "Antofagasta"
+)
+
+fig5_sankey_antofagasta
+
+# NOTE:
+# The full Sankey flow data are exported for all cities.
+# One city is displayed as an example because networkD3 outputs are
+# interactive HTML widgets and their layout is generated automatically.
+```
+
+#Fig. 6: Timelines
+```{r}
+entropy_analysis_tbl <- entropy_official_tbl %>%
+  mutate(
+    CITY = recode(
+      CITY,
+      "Coquimbo-La Serena" = "La Serena",
+      "Gran Valparaíso" = "Valparaíso",
+      "Gran Santiago" = "Santiago",
+      "Gran Concepción" = "Concepción"
+    )
+  )
+```
+
+```{r}
+# -----------------------------------------------------
+# 3.3 Segregation of users
+# Fig. 6 – Entropy timelines
+# -----------------------------------------------------
+
+entropy_long_tbl <- entropy_analysis_tbl %>%
+  pivot_longer(
+    cols = `0`:`23`,
+    names_to = "hour",
+    values_to = "H"
+  ) %>%
+  mutate(hour = as.integer(hour))
+
+entropy_parks_tbl <- parks_analysis_tbl %>%
+  select(ID, CITY, GREENNESS_LEVEL, ISMT_LEVEL) %>%
+  distinct()
+
+entropy_timeline_data <- entropy_long_tbl %>%
+  left_join(
+    entropy_parks_tbl,
+    by = c("ID", "CITY")
+  ) %>%
+  filter(
+    !is.na(H),
+    !is.na(GREENNESS_LEVEL),
+    !is.na(ISMT_LEVEL)
+  )
+
+timeline_greenness_tbl <- entropy_timeline_data %>%
+  group_by(CITY, hour, GREENNESS_LEVEL) %>%
+  summarise(
+    mean_H = mean(H, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+timeline_ismt_tbl <- entropy_timeline_data %>%
+  group_by(CITY, hour, ISMT_LEVEL) %>%
+  summarise(
+    mean_H = mean(H, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r}
+# -----------------------------------------------------
+# 3.3 Segregation of users
+# Fig. 6 – Entropy timelines
+# -----------------------------------------------------
+
+entropy_long_tbl <- entropy_analysis_tbl %>%
+  pivot_longer(
+    cols = `0`:`23`,
+    names_to = "hour",
+    values_to = "H"
+  ) %>%
+  mutate(hour = as.integer(hour))
+
+entropy_parks_tbl <- parks_analysis_tbl %>%
+  select(ID, CITY, GREENNESS_LEVEL, ISMT_LEVEL) %>%
+  distinct()
+
+entropy_timeline_data <- entropy_long_tbl %>%
+  left_join(
+    entropy_parks_tbl,
+    by = c("ID", "CITY")
+  ) %>%
+  filter(
+    !is.na(H),
+    !is.na(GREENNESS_LEVEL),
+    !is.na(ISMT_LEVEL)
+  )
+
+timeline_greenness_tbl <- entropy_timeline_data %>%
+  group_by(CITY, hour, GREENNESS_LEVEL) %>%
+  summarise(
+    mean_H = mean(H, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+timeline_ismt_tbl <- entropy_timeline_data %>%
+  group_by(CITY, hour, ISMT_LEVEL) %>%
+  summarise(
+    mean_H = mean(H, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+```{r}
+# Main figure – entropy timeline by greenness, all cities
+fig6_timeline_greenness_all <- ggplot(
+  timeline_greenness_tbl,
+  aes(x = hour, y = mean_H, color = GREENNESS_LEVEL)
+) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 1.5) +
+  facet_wrap(~ CITY, ncol = 2) +
+  scale_color_manual(
+    values = c(
+      "Low Greenness" = "#AFBDAF",
+      "Medium Greenness" = "#72AE72",
+      "High Greenness" = "#009900"
+    )
+  ) +
+  labs(
+    x = "Hour",
+    y = "Mean entropy (H)",
+    color = "Park greenness"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+fig6_timeline_greenness_all
+
+# ggsave(
+#   filename = here("outputs", "figures", "fig6_timeline_greenness_all_cities.pdf"),
+#   plot = fig6_timeline_greenness_all,
+#   width = 10,
+#   height = 7,
+#   dpi = 300
+# )
+# 
+# ggsave(
+#   filename = here("outputs", "figures", "fig6_timeline_greenness_all_cities.png"),
+#   plot = fig6_timeline_greenness_all,
+#   width = 10,
+#   height = 7,
+#   dpi = 300
+# )
+
+# NOTE:
+# Timelines are reconstructed from the official analytical tables.
+# In Antofagasta and Puerto Montt, the vertical ordering of greenness
+# categories differs from earlier exploratory plots, likely due to
+# differences between the final official tables and the original
+# city-specific working objects.
+```
+
+
+```{r}
+fig6_timeline_ismt_all <- ggplot(
+  timeline_ismt_tbl,
+  aes(x = hour, y = mean_H, color = ISMT_LEVEL)
+) +
+  geom_line(linewidth = 1.1) +
+  geom_point(size = 1.5) +
+  facet_wrap(~ CITY, ncol = 2) +
+  labs(
+    x = "Hour",
+    y = "Mean entropy (H)",
+    color = "ISMT category"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+# fig6_timeline_ismt_all
+```
+
+
+
+#Fig. 7: Cluster analysis
+```{r}
+# -----------------------------------------------------
+# Cluster analysis of park segregation profiles
+# -----------------------------------------------------
+
+park_area_tbl <- parks_sf %>%
+  st_drop_geometry() %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = as.character(CITY)
+  ) %>%
+  group_by(ID, CITY) %>%
+  summarise(
+    AT = max(AT, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+parks_cluster_tbl <- parks_analysis_tbl %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = as.character(CITY)
+  ) %>%
+  left_join(
+    park_area_tbl %>%
+      select(ID, AT),
+    by = "ID"
+  )
+
+entropy_cluster_tbl <- entropy_analysis_tbl %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = as.character(CITY)
+  ) %>%
+  left_join(
+    parks_cluster_tbl %>%
+      select(ID, CITY, AT, QUALITY_INDEX, MEAN_NDVI, ISMT),
+    by = c("ID", "CITY")
+  ) %>%
+  filter(
+    AT > 5000
+  )
+```
+
+```{r}
+city_i <- "Antofagasta"
+
+dend_tbl <- entropy_cluster_tbl %>%
+  filter(CITY == city_i) %>%
+  select(ID, `0`:`23`) %>%
+  distinct() %>%
+  drop_na()
+
+dend <- dend_tbl %>%
+  column_to_rownames("ID") %>%
+  as.matrix()
+
+dendro <- as.dendrogram(
+  hclust(dist(dend))
+)
+
+dendro_colores <- color_branches(dendro, 4) %>%
+  set("branches_lwd", 2)
+
+plot(dendro_colores, horiz = TRUE, leaflab = "none")
+
+# The same workflow can be repeated for any city by changing
+# the value of `city_i`.
+```
+
+```{r}
+d4 <- data.frame(cutree(dendro, 4)) %>%
+  tibble::rownames_to_column("ID") %>%
+  rename(dend_group = cutree.dendro..4.) %>%
+  mutate(
+    ID = as.character(ID),
+    dend_group = factor(dend_group)
+  ) %>%
+  left_join(
+    parks_cluster_tbl %>%
+      filter(CITY == city_i) %>%
+      select(ID, CITY, AT, QUALITY_INDEX, MEAN_NDVI, ISMT),
+    by = "ID"
+  ) %>%
+  filter(QUALITY_INDEX > 0)
+```
+
+```{r}
+ggplot(d4, aes(x = dend_group, y = QUALITY_INDEX)) +
+  geom_boxplot() +
+  theme_minimal()
+
+ggplot(d4, aes(x = dend_group, y = MEAN_NDVI)) +
+  geom_boxplot() +
+  theme_minimal()
+
+ggplot(d4, aes(x = dend_group, y = ISMT)) +
+  geom_boxplot() +
+  theme_minimal()
+```
+
+
+# -----------------------------------------------------
+# 4. Table 1 – Study area descriptors
+# -----------------------------------------------------
+```{r}
+# =====================================================
+# Table 1 – Final study area descriptors
+# =====================================================
+# The final Table 1 in the manuscript combines descriptors
+# from several sources:
+#
+# - Number of parks, total park area, mean park area, and NDVI:
+#   derived from parks_analysis_tbl.
+# - Antennas and SES user counts:
+#   derived from the mobility dataset / entropy inputs.
+# - Population and population density:
+#   derived from census-based population tables.
+# - Mean temperature and precipitation:
+#   extracted from WorldClim rasters using urban polygons.
+# - ISMT:
+#   derived from the reconstructed/official ISMT attributes.
+#
+# Because the published table combines analytical outputs,
+# census summaries, climate rasters, and manually formatted ranges,
+# the exact manuscript table was assembled manually.
+# The code above documents the reproducible derivation of its
+# main quantitative components.
+```
+
+
+# 4.1 Population density
+```{r}
+# =====================================================
+# Table 1 – Population density
+# =====================================================
+
+library(tidyverse)
+library(readxl)
+library(here)
+library(janitor)
+
+# -----------------------------------------------------
+# Load data
+# -----------------------------------------------------
+
+density_raw <- read_excel(
+  here("data", "poblaciones.xlsx")
+) %>%
+  clean_names()
+
+# -----------------------------------------------------
+# Prepare data
+# -----------------------------------------------------
+
+density_tbl <- density_raw %>%
+  mutate(
+    area_km2 = poblacion / densidad_reportada,
+
+    city = case_when(
+      comuna == "antofagasta" ~ "Antofagasta",
+
+      comuna %in% c(
+        "la serena",
+        "coquimbo"
+      ) ~ "La Serena",
+
+      comuna %in% c(
+        "valparaiso",
+        "viña del mar",
+        "quilpue",
+        "villa alemana"
+      ) ~ "Valparaíso",
+
+      comuna %in% c(
+        "santiago (provincia)",
+        "colina",
+        "lampa",
+        "padre hurtado",
+        "peñaflor",
+        "pirque",
+        "puente alto",
+        "san bernardo"
+      ) ~ "Santiago",
+
+      comuna %in% c(
+        "concepcion",
+        "talcahuano",
+        "hualpen",
+        "penco",
+        "coronel",
+        "san pedro de la paz"
+      ) ~ "Concepción",
+
+      comuna %in% c(
+        "puerto montt",
+        "puerto varas"
+      ) ~ "Puerto Montt",
+
+      TRUE ~ NA_character_
+    )
+  )
+
+# -----------------------------------------------------
+# Aggregate by city
+# -----------------------------------------------------
+
+city_density <- density_tbl %>%
+  group_by(city) %>%
+  summarise(
+    population = sum(poblacion, na.rm = TRUE),
+    area_km2 = sum(area_km2, na.rm = TRUE),
+    population_density = population / area_km2,
+    .groups = "drop"
+  ) %>%
+  arrange(
+    factor(
+      city,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    )
+  )
+
+city_density
+# Population density was calculated using total population and total municipal area of the communes composing each conurbation.
+```
+
+
+```{r}
+ciudades <- st_read(
+  here("data", "Mapa_Ciudades_2017", "Ciudades_2017.shp")
+)
+
+names(ciudades)
+
+nrow(ciudades)
+unique(ciudades$URBANO)
+```
+
+```{r}
+# =====================================================
+# Prepare urban polygons for climate extraction
+# =====================================================
+
+library(sf)
+library(dplyr)
+library(here)
+
+ciudades <- st_read(
+  here("data", "Mapa_Ciudades_2017", "Ciudades_2017.shp")
+)
+
+# -----------------------------------------------------
+# 1. Assign urban polygons to study cities
+# -----------------------------------------------------
+
+ciudades_study <- ciudades %>%
+  mutate(
+    CITY = case_when(
+      NOM_COMUNA == "ANTOFAGASTA" ~ "Antofagasta",
+
+      NOM_COMUNA %in% c(
+        "LA SERENA",
+        "COQUIMBO"
+      ) ~ "La Serena",
+
+      NOM_COMUNA %in% c(
+        "VALPARAÍSO",
+        "VIÑA DEL MAR",
+        "QUILPUÉ",
+        "VILLA ALEMANA"
+      ) ~ "Valparaíso",
+
+      NOM_COMUNA %in% c(
+        "CERRILLOS", "CERRO NAVIA", "CONCHALÍ", "EL BOSQUE",
+        "ESTACIÓN CENTRAL", "HUECHURABA", "INDEPENDENCIA",
+        "LA CISTERNA", "LA FLORIDA", "LA GRANJA", "LA PINTANA",
+        "LA REINA", "LAS CONDES", "LO BARNECHEA", "LO ESPEJO",
+        "LO PRADO", "MACUL", "MAIPÚ", "ÑUÑOA",
+        "PEDRO AGUIRRE CERDA", "PEÑALOLÉN", "PROVIDENCIA",
+        "PUDAHUEL", "QULICURA", "QUINTA NORMAL", "RECOLETA",
+        "RENCA", "SAN JOAQUÍN", "SAN MIGUEL", "SAN RAMÓN",
+        "SANTIAGO", "VITACURA",
+        "COLINA", "LAMPA", "PADRE HURTADO", "PEÑAFLOR",
+        "PIRQUE", "PUENTE ALTO", "SAN BERNARDO"
+      ) ~ "Santiago",
+
+      NOM_COMUNA %in% c(
+        "CONCEPCIÓN",
+        "TALCAHUANO",
+        "HUALPÉN",
+        "PENCO",
+        "CORONEL",
+        "SAN PEDRO DE LA PAZ"
+      ) ~ "Concepción",
+
+      NOM_COMUNA %in% c(
+        "PUERTO MONTT",
+        "PUERTO VARAS"
+      ) ~ "Puerto Montt",
+
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(CITY))
+
+# -----------------------------------------------------
+# 2. Check selected polygons
+# -----------------------------------------------------
+
+ciudades_study %>%
+  st_drop_geometry() %>%
+  count(CITY, sort = FALSE) %>%
+  print(n = Inf)
+
+ciudades_study %>%
+  st_drop_geometry() %>%
+  select(CITY, NOM_COMUNA, URBANO, TIPO, CATEGORIA, TOT_PERSON) %>%
+  arrange(CITY, NOM_COMUNA) %>%
+  print(n = Inf)
+
+# -----------------------------------------------------
+# 3. Dissolve polygons into six study cities
+# -----------------------------------------------------
+
+ciudades_ugs <- ciudades_study %>%
+  group_by(CITY) %>%
+  summarise(
+    population_urban_2017 = sum(TOT_PERSON, na.rm = TRUE),
+    urban_area_m2 = sum(as.numeric(st_area(geometry)), na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    urban_area_km2 = urban_area_m2 / 1e6,
+    urban_density_km2 = population_urban_2017 / urban_area_km2
+  )
+
+# -----------------------------------------------------
+# 4. Final check
+# -----------------------------------------------------
+
+ciudades_ugs %>%
+  st_drop_geometry() %>%
+  arrange(factor(
+    CITY,
+    levels = c(
+      "Antofagasta",
+      "La Serena",
+      "Valparaíso",
+      "Santiago",
+      "Concepción",
+      "Puerto Montt"
+    )
+  ))
+```
+
+# 4.2 Climate variables
+```{r}
+# Temperature: annual mean, coldest month, warmest month
+temp_mean <- terra::extract(tavg_annual, vect(ciudades_ugs_wgs84), fun = mean, na.rm = TRUE)
+
+temp_monthly_city <- lapply(1:nlyr(tavg), function(i) {
+  terra::extract(tavg[[i]], vect(ciudades_ugs_wgs84), fun = mean, na.rm = TRUE)[,2]
+}) %>%
+  bind_cols()
+
+temp_min_month <- apply(temp_monthly_city, 1, min, na.rm = TRUE)
+temp_max_month <- apply(temp_monthly_city, 1, max, na.rm = TRUE)
+```
+```{r}
+# Precipitation: annual total, driest month, wettest month
+prec_mean <- terra::extract(prec_annual, vect(ciudades_ugs_wgs84), fun = mean, na.rm = TRUE)
+
+prec_monthly_city <- lapply(1:nlyr(prec), function(i) {
+  terra::extract(prec[[i]], vect(ciudades_ugs_wgs84), fun = mean, na.rm = TRUE)[,2]
+}) %>%
+  bind_cols()
+
+prec_min_month <- apply(prec_monthly_city, 1, min, na.rm = TRUE)
+prec_max_month <- apply(prec_monthly_city, 1, max, na.rm = TRUE)
+```
+
+
+```{r}
+climate_city <- ciudades_ugs %>%
+  st_drop_geometry() %>%
+  select(CITY) %>%
+  mutate(
+    mean_annual_temperature = temp_mean[,2],
+    min_monthly_temperature = temp_min_month,
+    max_monthly_temperature = temp_max_month,
+    annual_precipitation = prec_mean[,2],
+    min_monthly_precipitation = prec_min_month,
+    max_monthly_precipitation = prec_max_month
+  )
+
+climate_city
+```
+
+
+#4.3 Antennas
+```{r}
+voronoi_sf %>%
+  st_drop_geometry() %>%
+  distinct(ID, City) %>%
+  count(City)
+```
+
+#4.4 Parks NDVI
+```{r}
+table_1_ndvi_tbl <- parks_analysis_tbl %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = as.character(CITY)
+  ) %>%
+  group_by(CITY) %>%
+  summarise(
+    mean_ndvi = mean(MEAN_NDVI, na.rm = TRUE),
+    min_ndvi = min(MEAN_NDVI, na.rm = TRUE),
+    max_ndvi = max(MEAN_NDVI, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(
+    factor(
+      CITY,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    )
+  )
+
+table_1_ndvi_tbl
+```
+
+#4.5 ISMT
+```{r}
+ismt_city <- ismt_official_sf %>%
+  st_drop_geometry() %>%
+  mutate(
+    population = Q1 + Q2 + Q3 + Q4 + Q5
+  ) %>%
+  group_by(city) %>%
+  summarise(
+    mean_ismt =
+      weighted.mean(
+        ismtpn,
+        w = population,
+        na.rm = TRUE
+      ),
+
+    min_ismt = min(ismtpn, na.rm = TRUE),
+    max_ismt = max(ismtpn, na.rm = TRUE),
+
+    total_population = sum(population),
+    n_zones = n(),
+
+    .groups = "drop"
+  )
+
+ismt_city
+```
+
+
+
+#4.6 Final table
+```{r}
+# =====================================================
+# Table 1 – Park area descriptors from park geometries
+# =====================================================
+
+table_1_parks_tbl <- parks_sf %>%
+  st_drop_geometry() %>%
+  mutate(
+    ID = as.character(ID),
+    CITY = as.character(CITY)
+  ) %>%
+  group_by(CITY, ID) %>%
+  summarise(
+    park_area_m2 = max(AT, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(CITY) %>%
+  summarise(
+    parks = n_distinct(ID),
+    total_park_area_ha = sum(park_area_m2, na.rm = TRUE) / 10000,
+    mean_park_area_ha = mean(park_area_m2, na.rm = TRUE) / 10000,
+    .groups = "drop"
+  ) %>%
+  arrange(
+    factor(
+      CITY,
+      levels = c(
+        "Antofagasta",
+        "La Serena",
+        "Valparaíso",
+        "Santiago",
+        "Concepción",
+        "Puerto Montt"
+      )
+    )
+  )
+
+table_1_parks_tbl
+```
+
+
+
+# -----------------------------------------------------
+# 5. Appendix
+# -----------------------------------------------------
+## 5.1 Spatial characterization
+
+The spatial characterization maps included in the Appendix were
+prepared in QGIS using the official park, NDVI, ISMT and entropy
+layers. Since these maps are purely illustrative and do not involve
+additional analyses, their cartographic composition is not reproduced
+in this workflow.
+
+##5.2 ANOVA
+```{r}
+# -----------------------------------------------------
+# 5.2 Appendix – ANOVA tables
+# -----------------------------------------------------
+
+## ANOVA: NDVI differences across ISMT quartiles
+
+anova_ndvi_tbl <- parks_analysis_tbl %>%
+  st_drop_geometry() %>% 
+  filter(
+    !is.na(CITY),
+    !is.na(MEAN_NDVI),
+    !is.na(ISMT_LEVEL)
+  ) %>%
+  mutate(
+    CITY = as.character(CITY),
+    ISMT_LEVEL = factor(ISMT_LEVEL)
+  ) %>%
+  group_by(CITY) %>%
+  group_modify(~ {
+    
+    m1 <- lm(MEAN_NDVI ~ ISMT_LEVEL, data = .x)
+    aov_tbl <- anova(m1)
+    
+    tibble(
+      term = rownames(aov_tbl),
+      df = aov_tbl$Df,
+      sum_sq = aov_tbl$`Sum Sq`,
+      mean_sq = aov_tbl$`Mean Sq`,
+      f_value = aov_tbl$`F value`,
+      p_value = aov_tbl$`Pr(>F)`
+    )
+    
+  }) %>%
+  ungroup()
+```
+
+```{r}
+anova_ndvi_tbl_formatted <- anova_ndvi_tbl %>%
+  mutate(
+    sum_sq = round(sum_sq, 4),
+    mean_sq = round(mean_sq, 4),
+    f_value = round(f_value, 3),
+    p_value = case_when(
+      is.na(p_value) ~ NA_character_,
+      p_value < 0.001 ~ "<0.001",
+      TRUE ~ as.character(round(p_value, 4))
+    )
+  ) %>%
+  rename(
+    City = CITY,
+    Term = term,
+    `Df` = df,
+    `Sum Sq` = sum_sq,
+    `Mean Sq` = mean_sq,
+    `F-value` = f_value,
+    `p-value` = p_value
+  )
+
+knitr::kable(
+  anova_ndvi_tbl_formatted,
+  caption = "Appendix Table A1. One-way ANOVA testing differences in park NDVI among ISMT quartiles within each city.",
+  align = "llrrrrr"
+)
+```
+
+
+
+##5.3 Tukey
+```{r}
+# -----------------------------------------------------
+# 5.3 Appendix – Tukey post-hoc table in LaTeX format
+# -----------------------------------------------------
+
+library(emmeans)
+library(stringr)
+library(purrr)
+
+ismt_order <- c("Low", "Medium Low", "Medium High", "High")
+
+city_labels <- c(
+  "Antofagasta"  = "\\textbf{A} - Antofagasta",
+  "La Serena"   = "\\textbf{B} - La Serena",
+  "Valparaíso"  = "\\textbf{C} - Valparaíso",
+  "Santiago"    = "\\textbf{D} - Santiago",
+  "Concepción"  = "\\textbf{E} - Concepción",
+  "Puerto Montt" = "\\textbf{F} - Puerto Montt"
+)
+
+city_order <- c(
+  "Antofagasta",
+  "La Serena",
+  "Valparaíso",
+  "Santiago",
+  "Concepción",
+  "Puerto Montt"
+)
+
+ismt_order <- c(
+  "Low",
+  "Medium Low",
+  "Medium High",
+  "High"
+)
+
+tukey_latex_tbl <- parks_analysis_tbl %>%
+  st_drop_geometry() %>%
+  filter(
+    !is.na(CITY),
+    !is.na(MEAN_NDVI),
+    !is.na(ISMT_LEVEL)
+  ) %>%
+  mutate(
+  CITY = factor(as.character(CITY), levels = city_order),
+  ISMT_LEVEL = factor(ISMT_LEVEL, levels = ismt_order)
+) %>%
+filter(!is.na(CITY), !is.na(ISMT_LEVEL)) %>%
+  group_by(CITY) %>%
+  group_modify(~ {
+
+    if (n_distinct(.x$ISMT_LEVEL) < 2) return(tibble())
+
+    m1 <- lm(MEAN_NDVI ~ ISMT_LEVEL, data = .x)
+
+    emmeans(m1, pairwise ~ ISMT_LEVEL, adjust = "tukey")$contrasts %>%
+      summary(infer = c(TRUE, TRUE)) %>%
+      as.data.frame() %>%
+      tidyr::separate(
+        contrast,
+        into = c("I", "J"),
+        sep = " - ",
+        remove = FALSE
+      ) %>%
+      transmute(
+        I,
+        J,
+        diff = estimate,
+        lower = lower.CL,
+        upper = upper.CL,
+        p_adj = p.value
+      )
+  }) %>%
+  ungroup()
+```
+
+
+```{r}
+fmt_num <- function(x) sprintf("%.3f", x)
+
+fmt_sig <- function(diff, p) {
+  value <- fmt_num(diff)
+  ifelse(
+    p < 0.05,
+    paste0("\\textbf{", value, "$^*$}"),
+    value
+  )
+}
+
+fmt_group <- function(x, p) {
+  ifelse(p < 0.05, paste0("\\textbf{", x, "}"), x)
+}
+
+fmt_ci <- function(lower, upper, p) {
+  ci <- paste0("(", fmt_num(lower), ", ", fmt_num(upper), ")")
+  ifelse(p < 0.05, paste0("\\textbf{", ci, "}"), ci)
+}
+
+tukey_latex_lines <- tukey_latex_tbl %>%
+  mutate(
+    city_label = city_labels[CITY],
+    I_fmt = fmt_group(I, p_adj),
+    J_fmt = fmt_group(J, p_adj),
+    diff_fmt = fmt_sig(diff, p_adj),
+    ci_fmt = fmt_ci(lower, upper, p_adj)
+  ) %>%
+  group_by(CITY) %>%
+  group_split() %>%
+  map_chr(function(df) {
+
+    rows <- character(nrow(df))
+
+    for (i in seq_len(nrow(df))) {
+
+      city_cell <- ifelse(i == 1, df$city_label[i], "")
+      i_cell <- ifelse(i == 1 || df$I[i] != df$I[i - 1], df$I_fmt[i], "")
+
+      rows[i] <- paste0(
+        city_cell, " & ",
+        i_cell, " & ",
+        df$J_fmt[i], " & ",
+        df$diff_fmt[i], " & ",
+        df$ci_fmt[i], " \\\\"
+      )
+    }
+
+    paste0(
+      paste(rows, collapse = "\n"),
+      "\n\\hline"
+    )
+  })
+
+cat(
+paste0(
+"\\begin{table}[!htb]
+  \\caption{Tukey post-hoc analysis shows the mean NDVI differences between ISMT quartiles. Significant comparisons between groups I and J are highlighted and marked by an asterisk (\\ie $p < 0.05$).\\label{apxTable:TukeyTable}}
+  \\footnotesize
+  \\centering
+  \\begin{tabularx}{\\linewidth}{l l l r r}
+  \\\\[0.2mm]
+  \\hline
+  \\multirow{2}{*}{\\textbf{City}} & & & \\textbf{Mean difference} & 95\\% Confidence Interval \\\\
+  & (I) ISMT Quartile & (J) ISMT Quartile & (I - J) $\\Delta$ NDVI & (lower, upper)\\\\
+  \\hline
+",
+paste(tukey_latex_lines, collapse = "\n\n"),
+"
+  \\hline
+  \\end{tabularx}
+\\end{table}"
+)
+)
+```
+
+
+
+##5.4 Hierarchical clustering
+```{r}
+city_i <- "Antofagasta"
+
+dend_tbl <- entropy_cluster_tbl %>%
+  filter(CITY == city_i) %>%
+  select(ID, `0`:`23`) %>%
+  distinct() %>%
+  drop_na()
+
+dend <- dend_tbl %>%
+  column_to_rownames("ID") %>%
+  as.matrix()
+
+dendro <- as.dendrogram(
+  hclust(dist(dend))
+)
+
+dendro_colores <- color_branches(dendro, 4) %>%
+  set("branches_lwd", 2)
+
+plot(dendro_colores, horiz = TRUE, leaflab = "none")
+
+# The same workflow can be repeated for any city by changing
+# the value of `city_i`.
+```
+
+
+
+
+# -----------------------------------------------------
+# 6. Supplementary material
+# -----------------------------------------------------
+
+## 6.1 Supplementary cartography
+
+The official supplementary cartography is loaded in Section 1.1 from:
+data/UGS_cartography.gpkg
+
+It contains three layers:
+ - parks
+ - ismt
+ - voronoi
+
+These layers are used in this workflow for spatial documentation,
+validation and reproducibility checks.
+
+The original supplementary cartographic package is not regenerated here,
+because the GeoPackage is treated as an official input rather than an
+output of the present repository.
+
+
+
+
+## 6.2 Optional local exports
+```{r}
+#| eval: false
+#| include: false
+
+# Optional: create local copies of selected supplementary layers.
+# These files are written to outputs/, which is ignored by Git.
+
+if (!dir.exists(here("outputs"))) dir.create(here("outputs"))
+
+optional_gpkg_path <- here("outputs", "UGS_supplementary_layers_local.gpkg")
+
+if (file.exists(optional_gpkg_path)) file.remove(optional_gpkg_path)
+
+write_sf(parks_official_sf, optional_gpkg_path, layer = "parks")
+write_sf(ismt_official_sf, optional_gpkg_path, layer = "ismt")
+write_sf(voronoi_official_sf, optional_gpkg_path, layer = "voronoi")
+
+st_layers(optional_gpkg_path)
+```
+
