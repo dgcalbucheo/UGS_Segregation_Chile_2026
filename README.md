@@ -112,7 +112,7 @@ Most datasets required to reproduce the analyses are included in this repository
 | Census-derived population table | Yes      |
 
 
-Original mobile phone XDR records and the original public park database are not redistributed because they are subject to third-party licensing and data-sharing agreements. This repository instead provides the processed datasets required to reproduce the analyses presented in the manuscript.
+Original mobile phone XDR records cannot be redistributed because they are subject to third-party licensing and data-sharing agreements. The original public park database can be obtained from the source referenced above but is not included in this repository to reduce repository size. Processed datasets required to reproduce the analyses are provided instead.
 
 ---
 
