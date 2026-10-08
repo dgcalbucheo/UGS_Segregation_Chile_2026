@@ -1,0 +1,109 @@
+---
+title: "Socioeconomic Segregation and Park Greenness – Reproducible analysis"
+format:
+  html:
+    toc: true
+    code-fold: true
+execute:
+  warning: false
+  message: false
+---
+
+Este reporte es solo la "vitrina": no contiene la lógica del análisis. Cada
+sección ejecuta un script de `R/` y muestra sus resultados. El análisis completo
+se puede correr sin Quarto con `source("run_all.R")` desde la raíz del proyecto.
+
+```{r setup}
+source(here::here("R", "00_setup.R"))
+ugs_load(c("dplyr", "knitr"))
+
+# Ejecuta un script de R/ en un entorno aislado y devuelve ese entorno
+# (invisible), para poder leer los objetos que el script creó.
+run_stage <- function(script) {
+  env <- new.env()
+  source(here::here("R", script), local = env)
+  invisible(env)
+}
+
+show_fig <- function(name) {
+  knitr::include_graphics(file.path(dir_figures, paste0(name, ".png")))
+}
+```
+
+## 1. Tablas analíticas
+
+```{r tables}
+run_stage("01_analysis_tables.R")
+tables <- load_analysis_tables()
+tables$parks %>% count(CITY, GREENNESS_LEVEL) %>% kable()
+```
+
+## 2. Resultados
+
+### Fig. 2 y Fig. 3 – NDVI de los parques
+
+```{r fig23}
+run_stage("02_fig2_fig3_ndvi.R")
+show_fig("fig2_ndvi_histogram_by_city")
+show_fig("fig3_population_ndvi")
+```
+
+### Fig. 4 – NDVI según categoría ISMT, ANOVA y TukeyHSD
+
+```{r fig4}
+run_stage("03_fig4_anova_tukey.R")
+show_fig("fig4_ndvi_ismt_boxplots")
+```
+
+```{r tukey-table}
+readr::read_csv(file.path(dir_tables, "Table_A2_Tukey_NDVI_ISMT_by_city.csv"),
+                show_col_types = FALSE) %>%
+  mutate(across(c(diff, lower, upper), ~ round(.x, 4)),
+         p_adj = signif(p_adj, 3)) %>%
+  kable(caption = "Table A.2 – TukeyHSD: diferencias de NDVI medio entre categorías ISMT, por ciudad.")
+```
+
+### Fig. 5 – Sankey greenness → ISMT
+
+Los diagramas interactivos se generan con `R/04_fig5_sankey.R` y se guardan como
+HTML en `outputs/figures/`.
+
+```{r fig5, eval = FALSE}
+run_stage("04_fig5_sankey.R")
+```
+
+### Fig. 6 – Entropía horaria
+
+```{r fig6}
+run_stage("05_fig6_entropy_timelines.R")
+show_fig("fig6_timeline_greenness_all_cities")
+```
+
+## 3. Table 1 – Descriptores del área de estudio
+
+```{r table1}
+run_stage("07_table1_study_area.R")
+```
+
+## 4. Apéndice
+
+### Table A1 – ANOVA
+
+```{r a1}
+appendix_env <- run_stage("08_appendix_tables.R")
+kable(appendix_env$anova_ndvi_tbl_formatted,
+      caption = "Table A1. ANOVA de una vía: NDVI de los parques según cuartil ISMT, por ciudad.",
+      align = "llrrrrr")
+```
+
+### Clustering jerárquico (Antofagasta)
+
+```{r clusters}
+run_stage("06_fig7_clusters.R")
+```
+
+## 5. Reconstrucción espacial (opcional)
+
+`R/optional_spatial_reconstruction.R` reconstruye ISMT, NDVI y entropía desde los
+datos espaciales crudos y los valida contra las tablas oficiales. Es pesado y no
+se ejecuta aquí; ver el README.
